@@ -27,19 +27,19 @@ int main(int argc, char *argv[]) {
     // The variable to store the server's address.
     struct sockaddr_in server;
 
-    FILE *message1;
+    //FILE *message1;
 
     // Open a file for writing.
-    message1 = fopen("messageRUDP.txt", "w+");
+    /*message1 = fopen("messageRUDP.txt", "w+");
 
     if(message1 == NULL){
         return 1;
-    }
+    }*/
 
     // Create a message of 2MB to send to the server.
     char *message = util_generate_random_data(size_of_message);
 
-    fwrite(message, 1, size_of_message, message1);
+    //fwrite(message, 1, size_of_message, message1);
 
     // Reset the server structure to zeros.
     memset(&server, 0, sizeof(server));
@@ -94,7 +94,6 @@ int main(int argc, char *argv[]) {
     if (rudp_connect(client, SERVER_IP, SERVER_PORT) == 0)
     {
         perror("rudp_connect()");
-        rudp_disconnect(client);
         rudp_close(client);
         return 1;
     }
@@ -105,7 +104,7 @@ int main(int argc, char *argv[]) {
     while(sender_choise == 1){
     
         // Try to send the message to the server using the socket.
-        int bytes_sent = rudp_send(client, message1, sizeof(message1));
+        int bytes_sent = rudp_send(client, message, size_of_message);
 
         // If the message sending failed, print an error message and return 1.
         // If no data was sent, print an error message and return 1. Only occurs if the connection was closed.
@@ -131,7 +130,7 @@ int main(int argc, char *argv[]) {
     rudp_close(client);
     
     // Close the file.
-    fclose(message1);
+    //fclose(message1);
 
     fprintf(stdout, "Connection closed!\n");
 

@@ -43,13 +43,6 @@ RUDP_API: RUDP_API.o
 # Run programs #
 ################
 
-# Run tcp server.
-runts: TCP_Receiver
-	./TCP_Receiver
-
-# Run tcp client.
-runtc: TCP_Sender
-	./TCP_Sender
 
 # Run udp server.
 runus: RUDP_Receiver
@@ -87,4 +80,4 @@ runuc_trace: RUDP_Sender
 
 # Remove all the object files, shared libraries and executables.
 clean:
-	$(RM) *.o *.so TCP_Receiver TCP_Sender RUDP_Receiver RUDP_Sender
+	$(RM) *.o *.so RUDP_Receiver RUDP_Sender

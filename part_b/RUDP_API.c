@@ -91,16 +91,19 @@ int rudp_connect(RUDP_Socket *sockfd, const char *dest_ip, unsigned short int de
         return 0;
     }
 
+    
     // Reset the server structure to zeros.
-    memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
+    //memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
+    
 
     // Set the server's address family to AF_INET (IPv4).
-    sockfd->dest_addr.sin_family = AF_INET;
+    //sockfd->dest_addr.sin_family = AF_INET;
 
     // Set the server's port to the defined port. Note that the port must be in network byte order,
     // so we first convert it to network byte order using the htons function.
-    sockfd->dest_addr.sin_port = htons(dest_port);
-
+    //sockfd->dest_addr.sin_port = htons(dest_port);
+    
+    /*
     // Convert the server's address from text to binary form and store it in the server structure.
     // This should not fail if the address is valid (e.g. "127.0.0.1").
     if (inet_pton(AF_INET, dest_ip, &sockfd->dest_addr.sin_addr) <= 0)
@@ -108,7 +111,7 @@ int rudp_connect(RUDP_Socket *sockfd, const char *dest_ip, unsigned short int de
         perror("inet_pton(3)");
         close(sockfd->socket_fd);
         return 0;
-    }
+    }*/
 
     sockfd->ack_num = 0;
     sockfd->seq_num = 0;
@@ -272,8 +275,7 @@ int rudp_accept(RUDP_Socket *sockfd){
     free(receivem);
 
     // Now the server will send the ack + syn.
-    /*
-    char *dest_ip = inet_ntoa(receivem->dest_addr.sin_addr);
+    
     unsigned short int dest_port = sockfd->dest_addr.sin_port;
     
     // Reset the server structure to zeros.
@@ -285,15 +287,6 @@ int rudp_accept(RUDP_Socket *sockfd){
     // Set the server's port to the defined port. Note that the port must be in network byte order,
     // so we first convert it to network byte order using the htons function.
     sockfd->dest_addr.sin_port = htons(dest_port);
-
-    // Convert the server's address from text to binary form and store it in the server structure.
-    // This should not fail if the address is valid (e.g. "127.0.0.1").
-    if (inet_pton(AF_INET, dest_ip, &sockfd->dest_addr.sin_addr) <= 0)
-    {
-        perror("inet_pton(3)");
-        close(sockfd->socket_fd);
-        return 0;
-    }*/
 
     //sockfd->checksum = calculate_checksum((void*)receivem, sizeof(*receivem));
 
@@ -369,16 +362,25 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
         return -1;
     }
 
-    void *temp = buffer;
-
+    int length = WINDOW_SIZE;
     unsigned int bytes_total = 0;
     int bytes_received;
     char packet[WINDOW_SIZE] = {0};
     socklen_t adressLen = sizeof(sockfd->dest_addr);
-    RUDP_Socket *receivem = malloc(sizeof(RUDP_Socket));
+    
     do{
+        
+        RUDP_Socket *receivem = malloc(sizeof(RUDP_Socket));
+        if(receivem == NULL){
+            perror("allocate problem");
+            return -1;
+        }
 
-        bytes_received = recvfrom(sockfd->socket_fd, packet, WINDOW_SIZE, 0, (struct sockaddr *)&sockfd->dest_addr, &adressLen);
+        if(bytes_total + WINDOW_SIZE + sizeof(RUDP_Socket) > buffer_size){
+            length = buffer_size - bytes_total + sizeof(RUDP_Socket);
+        }
+
+        bytes_received = recvfrom(sockfd->socket_fd, packet, length, 0, (struct sockaddr *)&sockfd->dest_addr, &adressLen);
         //printf("bytes_received:%d\t", bytes_received);
         if(bytes_received <= 0){
             if(bytes_received < 0){
@@ -397,23 +399,30 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
             return -1;
         }
 
+        buffer = (char*)malloc(bytes_received - sizeof(RUDP_Socket));
+        char *temp = buffer;
+
         memcpy(receivem, packet, sizeof(RUDP_Socket));
-        memcpy(temp, packet + sizeof(RUDP_Socket), bytes_received - sizeof(RUDP_Socket));
+        memcpy(buffer, packet + sizeof(RUDP_Socket), bytes_received - sizeof(RUDP_Socket));
+
         bytes_total += bytes_received;
         sockfd->ack_num = receivem->seq_num + bytes_received;
         sockfd->seq_num = receivem->ack_num;
-        printf("hallllooo\n");
-        unsigned short result  = calculate_checksum(buffer, bytes_received - sizeof(RUDP_Socket));
-        if(result != receivem->checksum){
-            printf("client is:%d\n", receivem->checksum);
-            printf("server is:%d\n", result);
+        unsigned short int result  = calculate_checksum(buffer, bytes_received - sizeof(RUDP_Socket));
+
+        printf("+++++++++++\n");
+        printf("client is:%d\n", receivem->checksum);
+        printf("server is:%d\n", result);
+        if(result != receivem->checksum){    
             perror("checksum error");
             //close(sockfd->socket_fd);
             free(receivem);
             return -1;
+        }else{
+            printf("*checksum is correct\n");
         }
-        printf("confused\n");
-        temp = (char*)temp + bytes_received - sizeof(RUDP_Socket);
+
+        buffer = (char*)buffer + bytes_received - sizeof(RUDP_Socket);
 
         if(receivem->flags == 2){
             close(sockfd->socket_fd);
@@ -421,7 +430,6 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
             return 0;
         }
     
-
         sockfd->flags = 1; // A ACK flag.
 
         //sockfd->checksum = calculate_checksum(sockfd, sizeof(*sockfd));
@@ -437,11 +445,11 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
         sockfd->seq_num = receivem->ack_num;
         sockfd->ack_num = receivem->seq_num + sizeof(receivem);
         sockfd->flags = 0; // A ACK flag set to false.
+        free(receivem);
+        free(temp);
     }
 
     while(bytes_total < buffer_size);
-    
-    free(receivem);
 
     return bytes_total;
 }
@@ -467,19 +475,20 @@ int rudp_send(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
 
     int ans = 0;
     int bytes_sent;
-    RUDP_Socket *receivem = malloc(sizeof(RUDP_Socket));
     socklen_t adressLen = sizeof(sockfd->dest_addr);
     do{
         //printf("count:%d\n", count);
-
-        //transfer the data to the packet.
-        memcpy(packet + sizeof(RUDP_Socket), (char*)temp + count*(WINDOW_SIZE - sizeof(RUDP_Socket)), WINDOW_SIZE - sizeof(RUDP_Socket));
-
+        RUDP_Socket *receivem = malloc(sizeof(RUDP_Socket));
         //fill the header of the packet.
         sockfd->checksum = calculate_checksum((char*)temp + count*(WINDOW_SIZE - sizeof(RUDP_Socket)), WINDOW_SIZE - sizeof(RUDP_Socket));
 
+        memset(packet, 0, WINDOW_SIZE);
+
         //transfer the header to the packet.
         memcpy(packet, sockfd, sizeof(RUDP_Socket));
+
+        //transfer the data to the packet.
+        memcpy(packet + sizeof(RUDP_Socket), (char*)temp + count*(WINDOW_SIZE - sizeof(RUDP_Socket)), WINDOW_SIZE - sizeof(RUDP_Socket));
 
         bytes_sent = sendto(sockfd->socket_fd, packet, WINDOW_SIZE, 0, (struct sockaddr *)&sockfd->dest_addr, adressLen);
         if (bytes_sent <= 0)
@@ -489,6 +498,7 @@ int rudp_send(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
             //close(sockfd->socket_fd);
             return -1;
         }
+        printf("~checksum:%d\n", sockfd->checksum);
 
         int bytes_received = recvfrom(sockfd->socket_fd, receivem, sizeof(*receivem), 0, (struct sockaddr *)&sockfd->dest_addr, &adressLen);
         if(bytes_received <= 0){
@@ -520,6 +530,7 @@ int rudp_send(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
         }
 
         if(receivem->ack_num != sockfd->seq_num){
+            free(receivem);
             continue;
         }
 
@@ -528,6 +539,7 @@ int rudp_send(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
         ans += bytes_sent - sizeof(RUDP_Socket);
         count++;
         printf("count:%d\t", count);
+        free(receivem);
     }
     while (count < num_of_packets);
 

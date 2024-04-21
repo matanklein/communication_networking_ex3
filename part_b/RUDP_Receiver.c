@@ -31,10 +31,7 @@ int main(int argc, char *argv[]) {
     //int sock = -1;
 
     // The variable to store the server's address.
-    struct sockaddr_in server;
-
-    // The variable to store the client's address.
-    struct sockaddr_in client;
+    //struct sockaddr_in server;
 
     // Count the number of messeges.
     int counter_message = 0;
@@ -65,12 +62,7 @@ int main(int argc, char *argv[]) {
 
     // Save time.
     struct timeval start, end;
-    long elapsedTimeMs;
-
-
-    // Reset the server and client structures to zeros.
-    memset(&server, 0, sizeof(server));
-    memset(&client, 0, sizeof(client));
+    double elapsedTimeMs;
 
     // check if the command is correct
     if(argc != 3){
@@ -95,13 +87,13 @@ int main(int argc, char *argv[]) {
     //printf("Server is running...\n");
 
     // Set the server's address to "0.0.0.0" (all IP addresses on the local machine).
-    server.sin_addr.s_addr = INADDR_ANY;
+    //server.sin_addr.s_addr = INADDR_ANY;
 
     // Set the server's address family to AF_INET (IPv4).
-    server.sin_family = AF_INET;
+    //server.sin_family = AF_INET;
 
     // Set the server's port to the specified port. Note that the port must be in network byte order.
-    server.sin_port = htons(SERVER_PORT);
+    //server.sin_port = htons(SERVER_PORT);
 
     if(rudp_accept(Server) == 0){
         perror("rudp_accept()");
@@ -128,7 +120,6 @@ int main(int argc, char *argv[]) {
             if (bytes_received < 0)
             {
                 perror("rudp_recv");
-                rudp_disconnect(Server);
                 rudp_close(Server);
                 return 1;
             }
@@ -137,7 +128,7 @@ int main(int argc, char *argv[]) {
             // Close the client's socket and continue to the next iteration.
             else if (bytes_received == 0)
             {
-                fprintf(stdout, "Client %s:%d disconnected\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+                fprintf(stdout, "Client %s:%d disconnected\n", inet_ntoa(Server->dest_addr.sin_addr), ntohs(Server->dest_addr.sin_port));
                 //rudp_disconnect(Server);
                 break;
             }
@@ -153,28 +144,22 @@ int main(int argc, char *argv[]) {
         buffer[BUFFER_SIZE- 1] = '\0';
 
         // Calculate the time until the messege arrived.
-        elapsedTimeMs = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+        elapsedTimeMs = (end.tv_sec - start.tv_sec) * 1000 + (double)(end.tv_usec - start.tv_usec) / 1000;
+        sum_of_time += elapsedTimeMs;
 
         // calculate the bandwidth.
         band_width = calculateSpeed(BUFFER_SIZE,elapsedTimeMs);
+        sum_of_bandwidth += band_width;
+
         //printf("bandwidth: %f\n", band_width);
         //printf("byte recived is %d counter: %d\n", bytes_received,counter_message);
-
-        // if(elapsedTimeMs >= 50){
-        //     // Add to the sum of time and bandwidth.
-        //     sum_of_bandwidth += band_width;
-        //     sum_of_time += elapsedTimeMs;
-
-        //     // add to the counter of the messages.
-        //     counter_message++;
-
-        // }
         
         // Store the data in the list.
         DataPoint* p = (DataPoint*)malloc(sizeof(DataPoint));
         if(p == NULL){
             return 1;
         }
+
 	    p->speed_mb_per_sec = band_width;
 	    p->time_ms = elapsedTimeMs;
 
@@ -188,15 +173,15 @@ int main(int argc, char *argv[]) {
         
     }
 
-    fprintf(stdout, "Server finished!\n");
+    fprintf(stdout, "\nServer finished!\n");
 
     printf("********************************************\n");
                 DataPoint* tmp = list->_head;
                 int index = 1;
                 while(tmp){
                     //if(tmp->time_ms >= 50){
-                        printf("Run #%d: Time = %ldms; Speed = %.3fMB/s\n\n", index, tmp->time_ms, tmp->speed_mb_per_sec);
-                        index++;
+                    printf("Run #%d: Time = %ldms; Speed = %.3fMB/s\n\n", index, tmp->time_ms, tmp->speed_mb_per_sec);
+                    index++;
                     
                     
                     tmp = tmp->next;
