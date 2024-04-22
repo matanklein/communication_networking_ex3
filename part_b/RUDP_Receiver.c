@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Server has a connection\n");
+    printf("Server has a connection!\n");
 
     // Print a message to the standard output to indicate that a new client has connected.
     //fprintf(stdout, "Client %s:%d connected\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));

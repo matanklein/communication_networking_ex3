@@ -21,13 +21,13 @@ default: all
 # Programs #
 ############
 
- # Compile the tcp server.
+# Compile the tcp server.
 TCP_Receiver: TCP_Receiver.o
- 	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
- # Compile the tcp client.
+# Compile the tcp client.
 TCP_Sender: TCP_Sender.o
- 	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 
 

@@ -12,7 +12,7 @@
 char *util_generate_random_data(unsigned int);
 
 // Size of the message.
-unsigned int size_of_message = 2 * 1024 * 1024;
+int size_of_message = 2 * 1024 * 1024;
 
 /*
  * @brief TCP Client main function.
@@ -27,19 +27,8 @@ int main(int argc, char *argv[]) {
     // The variable to store the server's address.
     struct sockaddr_in server;
 
-    FILE *message1;
-
-    // Open a file in binary mode for writing.
-    message1 = fopen("message.txt", "wb");
-
-    if(message1 == NULL){
-        return 1;
-    }
-
     // Create a message of 2MB to send to the server.
-    char *message = util_generate_random_data(size_of_message);
-
-    fwrite(message, 1, size_of_message, message1);
+    char *message = util_generate_random_data((unsigned int)size_of_message);
 
     // Reset the server structure to zeros.
     memset(&server, 0, sizeof(server));
@@ -109,34 +98,29 @@ int main(int argc, char *argv[]) {
     }
 
     int sender_choise = 0;
-    int bytes_sent;
-    //printf("if you want to send the file again press '1'.\npress '0' if you dont want to send the file again\n");
-    //scanf("%d", &sender_choise);
-    int count = 1;
-    while(sender_choise == 1 || count <= 5){
+    do{
 
-        //sleep(1);
+        int bytes_sent = 0;
+        while(bytes_sent < size_of_message){
 
-        // Try to send the message to the server using the socket.
-        int bytes_sent = send(sock, message1, size_of_message, 0);
-
-        // If the message sending failed, print an error message and return 1.
-        // If no data was sent, print an error message and return 1. Only occurs if the connection was closed.
-        if (bytes_sent <= 0)
-        {
-            perror("send(2)");
-            close(sock);
-            return 1;
+            int count = send(sock, message + bytes_sent, size_of_message, 0);
+            if (bytes_sent <= 0)
+            {
+                perror("send(2)");
+                close(sock);
+                return 1;
+            }
+            bytes_sent += count;
         }
 
         printf("if you want to send the file again press '1'.\npress '0' if you dont want to send the file again\n");
-        //scanf("%d", &sender_choise);
-        count++;
+        scanf("%d", &sender_choise);
     }
+    while(sender_choise == 1);
 
     //sleep(1);
 
-    bytes_sent = send(sock, EXIT_MESSAGE, strlen(EXIT_MESSAGE) + 1, 0);
+    int bytes_sent = send(sock, EXIT_MESSAGE, strlen(EXIT_MESSAGE) + 1, 0);
 
     // If the exit message sending failed, print an error message and return 1.
     // If no data was sent, print an error message and return 1. Only occurs if the connection was closed.
@@ -147,15 +131,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // fprintf(stdout, "Sent %d bytes to the server!\n"
-    //                 "Waiting for the server to respond...\n", bytes_sent);
-
-
     // Close the socket with the server.
     close(sock);
-
-    // Close the file.
-    fclose(message1);
 
     fprintf(stdout, "Connection closed!\n");
 

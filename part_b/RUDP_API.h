@@ -1,22 +1,27 @@
 #include <arpa/inet.h> // For the in_addr structure and the inet_pton function
 #include <stdbool.h>
 
-#define WINDOW_SIZE 60000
+#define WINDOW_SIZE 1024
 
 // A struct that represents RUDP Socket
 typedef struct _rudp_socket
 {
 unsigned short int checksum; // checksum of the data.
-unsigned char flags; // Know what present in the packet
-unsigned short length; // The length of the data without the DUDP header.
-unsigned short seq_num; // The sequence number of the packet.
-unsigned short ack_num; // The acknowledgment number of the packet.
-//char data[WINDOW_SIZE]; // The data itself.
 int socket_fd; // UDP socket file descriptor
 bool isServer; // True if the RUDP socket acts like a server, false for client.
 bool isConnected; // True if there is an active connection, false otherwise.
 struct sockaddr_in dest_addr; // Destination address. Client fills it when it connects via rudp_connect(), server fills it when it accepts a connection via rudp_accept().
 } RUDP_Socket;
+
+typedef struct _rudp_packet
+{
+    unsigned short int checksum; // checksum of the data.
+    unsigned char flags; // Know what present in the packet
+    unsigned short length; // The length of the data without the DUDP header.
+    unsigned short seq_num; // The sequence number of the packet.
+    unsigned short ack_num; // The acknowledgment number of the packet.
+    char data[WINDOW_SIZE]; // The data itself.
+}pack;
 
 // Allocates a new structure for the RUDP socket (contains basic information about the socket itself). Also creates a UDP socket as a baseline for the RUDP. isServer means that this socket acts like a server. If set to server socket, it also binds the socket to a specific port.
 RUDP_Socket* rudp_socket(bool isServer, unsigned short int listen_port);

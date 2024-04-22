@@ -93,15 +93,21 @@ int rudp_connect(RUDP_Socket *sockfd, const char *dest_ip, unsigned short int de
 
     
     // Reset the server structure to zeros.
-    //memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
+    memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
     
-
     // Set the server's address family to AF_INET (IPv4).
-    //sockfd->dest_addr.sin_family = AF_INET;
+    sockfd->dest_addr.sin_family = AF_INET;
 
     // Set the server's port to the defined port. Note that the port must be in network byte order,
     // so we first convert it to network byte order using the htons function.
-    //sockfd->dest_addr.sin_port = htons(dest_port);
+    sockfd->dest_addr.sin_port = htons(dest_port);
+    
+    if (inet_pton(AF_INET, dest_ip, &sockfd->dest_addr.sin_addr) <= 0)
+    {
+        perror("inet_pton(3)");
+        close(sockfd->socket_fd);
+        return 0;
+    }
     
     /*
     // Convert the server's address from text to binary form and store it in the server structure.
@@ -156,6 +162,7 @@ int rudp_connect(RUDP_Socket *sockfd, const char *dest_ip, unsigned short int de
             if(bytes_received < 0){
                 if(errno == EWOULDBLOCK || errno == EAGAIN || errno == EINPROGRESS){
                     flag = 1;
+                    printf("timeout\n");
                     continue;
                 }else{
                     perror("recvfrom(2)");
@@ -276,17 +283,17 @@ int rudp_accept(RUDP_Socket *sockfd){
 
     // Now the server will send the ack + syn.
     
-    unsigned short int dest_port = sockfd->dest_addr.sin_port;
+    //unsigned short int dest_port = sockfd->dest_addr.sin_port;
     
     // Reset the server structure to zeros.
-    memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
+    //memset(&sockfd->dest_addr, 0, sizeof(sockfd->dest_addr));
 
     // Set the server's address family to AF_INET (IPv4).
-    sockfd->dest_addr.sin_family = AF_INET;
+    //sockfd->dest_addr.sin_family = AF_INET;
 
     // Set the server's port to the defined port. Note that the port must be in network byte order,
     // so we first convert it to network byte order using the htons function.
-    sockfd->dest_addr.sin_port = htons(dest_port);
+    //sockfd->dest_addr.sin_port = htons(dest_port);
 
     //sockfd->checksum = calculate_checksum((void*)receivem, sizeof(*receivem));
 
@@ -399,7 +406,7 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
             return -1;
         }
 
-        buffer = (char*)malloc(bytes_received - sizeof(RUDP_Socket));
+        //buffer = (char*)malloc(bytes_received - sizeof(RUDP_Socket));
         char *temp = buffer;
 
         memcpy(receivem, packet, sizeof(RUDP_Socket));
@@ -455,6 +462,7 @@ int rudp_recv(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){
 }
 
 int rudp_send(RUDP_Socket *sockfd, void *buffer, unsigned int buffer_size){ 
+    printf("sender masheooo");
 
     char packet[WINDOW_SIZE] = {0};
     int num_of_packets = ceil((buffer_size + sizeof(RUDP_Socket)) / (double)WINDOW_SIZE);
