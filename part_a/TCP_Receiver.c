@@ -239,12 +239,16 @@ int main(int argc, char *argv[]) {
     // Print the results.
     printf("\n\n********************************************\n");
     DataPoint* tmp = list->_head;
+    DataPoint* destroy;
     int index = 1;
     while(tmp){
         printf("Run #%d: Time = %ldms; Speed = %.3fMB/s\n\n", index, tmp->time_ms, tmp->speed_mb_per_sec);
         index++;
+        destroy = tmp;
         tmp = tmp->next;
-    }   
+        free(destroy);
+    }
+    free(list);   
 
     double avg_time = sum_of_time / counter_message;
     double avg_bandwidth = sum_of_bandwidth / counter_message;            

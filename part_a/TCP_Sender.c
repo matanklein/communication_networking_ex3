@@ -103,12 +103,10 @@ int main(int argc, char *argv[]) {
         int bytes_sent = 0;
         while(bytes_sent < size_of_message){
 
-            int count = send(sock, message + bytes_sent, size_of_message, 0);
-            if (bytes_sent <= 0)
+            int count = send(sock, message + bytes_sent, size_of_message - bytes_sent, 0);
+            if (bytes_sent < 0)
             {
-                perror("send(2)");
-                close(sock);
-                return 1;
+                break;
             }
             bytes_sent += count;
         }
