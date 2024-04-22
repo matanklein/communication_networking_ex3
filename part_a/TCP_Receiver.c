@@ -163,8 +163,9 @@ int main(int argc, char *argv[]) {
         gettimeofday(&start, NULL);
        
         // Receive a message from the client and store it in the buffer.
-        int bytes_received = recv(sock, buffer, BUFFER_SIZE, 0);
+        int bytes_received = recv(client_sock, buffer, BUFFER_SIZE, 0);
         total_bytes_received += bytes_received;
+        printf("bytes_received: %d\n", bytes_received);
 
         // If the message receiving failed, print an error message and return 1.
         if (bytes_received < 0)
@@ -175,20 +176,20 @@ int main(int argc, char *argv[]) {
         }
 
         // If the amount of received bytes is 0, the client has disconnected.
-        else if (bytes_received == 0)
+        if (bytes_received == 0)
         {
             fprintf(stdout, "Client %s:%d disconnected\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
             break;
         }
 
-        else if(strcmp(buffer,EXIT_MESSAGE) == 0){
+        if(strncmp(buffer,EXIT_MESSAGE,strlen(EXIT_MESSAGE)) == 0){
             flag = 0;
             printf("exit message\n");
             break;
         }
 
         while(total_bytes_received < BUFFER_SIZE){
-            bytes_received = recv(sock, buffer + total_bytes_received, BUFFER_SIZE - total_bytes_received, 0);
+            bytes_received = recv(client_sock, buffer + total_bytes_received, BUFFER_SIZE - total_bytes_received, 0);
             if(bytes_received < 0){
                 perror("recv(2)");
                 close(sock);
@@ -255,7 +256,7 @@ int main(int argc, char *argv[]) {
                 
     printf("Average time: %.3fms\n\n", avg_time);
     printf("Average bandwidth: %.3fMB/s\n", avg_bandwidth); 
-    printf("\n\n********************************************\n");           
+    printf("\n********************************************\n");           
                     
     return 0;
 }

@@ -27,9 +27,6 @@ int main(int argc, char *argv[]) {
     // The variable to store the server's address.
     struct sockaddr_in server;
 
-    // Create a message of 2MB to send to the server.
-    char *message = util_generate_random_data((unsigned int)size_of_message);
-
     // Reset the server structure to zeros.
     memset(&server, 0, sizeof(server));
 
@@ -48,35 +45,10 @@ int main(int argc, char *argv[]) {
     // Try to create a TCP socket (IPv4, stream-based, default protocol).
     sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    // Set congestion control algorithm (TCP Cubic or TCP Reno)
-    const char *congestion_algo = argv[6];
-    if (setsockopt(sock, IPPROTO_TCP, TCP_CONGESTION, congestion_algo, strlen(congestion_algo)) < 0) {
-        perror("setsockopt(2)");
-        close(sock);
-        return 1;
-    }
-
-    // Set socket options to disable Keep-Alive
-    int optval = 0;
-    if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) == -1) {
-        perror("Setsockopt failed");
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-
     // If the socket creation failed, print an error message and return 1.
     if (sock == -1)
     {
         perror("socket(2)");
-        return 1;
-    }
-
-    // Convert the server's address from text to binary form and store it in the server structure.
-    // This should not fail if the address is valid (e.g. "127.0.0.1").
-    if (inet_pton(AF_INET, SERVER_IP, &server.sin_addr) <= 0)
-    {
-        perror("inet_pton(3)");
-        close(sock);
         return 1;
     }
 
@@ -86,6 +58,15 @@ int main(int argc, char *argv[]) {
     // Set the server's port to the defined port. Note that the port must be in network byte order,
     // so we first convert it to network byte order using the htons function.
     server.sin_port = htons(SERVER_PORT);
+
+    // Convert the server's address from text to binary form and store it in the server structure.
+    // This should not fail if the address is valid (e.g. "127.0.0.1").
+    if (inet_pton(AF_INET, SERVER_IP, &server.sin_addr) <= 0)
+    {
+        perror("inet_pton(3)");
+        close(sock);
+        return 1;
+    }
 
     fprintf(stdout, "Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
 
@@ -97,6 +78,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Set congestion control algorithm (TCP Cubic or TCP Reno)
+    const char *congestion_algo = argv[6];
+    if (setsockopt(sock, IPPROTO_TCP, TCP_CONGESTION, congestion_algo, strlen(congestion_algo)) < 0) {
+        perror("setsockopt(2)");
+        close(sock);
+        return 1;
+    }
+    
+    // Create a message of 2MB to send to the server.
+    char* message = (char*)calloc(size_of_message, sizeof(char));
+    message = util_generate_random_data((unsigned int)size_of_message);
+
     int sender_choise = 0;
     do{
 
@@ -104,9 +97,12 @@ int main(int argc, char *argv[]) {
         while(bytes_sent < size_of_message){
 
             int count = send(sock, message + bytes_sent, size_of_message - bytes_sent, 0);
-            if (bytes_sent < 0)
+            printf("count: %d\n", count);
+            if (count < 0)
             {
-                break;
+                perror("send(2)");
+                close(sock);
+                return 1;
             }
             bytes_sent += count;
         }
@@ -129,8 +125,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Close the socket with the server.
+    
     close(sock);
+    free(message);
 
     fprintf(stdout, "Connection closed!\n");
 
