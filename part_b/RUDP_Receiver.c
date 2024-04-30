@@ -24,14 +24,9 @@ double calculateSpeed(int , long);
  * @return 0 if the server runs successfully, 1 otherwise.
 */
 int main(int argc, char *argv[]) {
+
     // Make the buffer size 2MB
-    size_t BUFFER_SIZE = 1024 * 1024 * 2;
-
-    // The variable to store the socket file descriptor.
-    //int sock = -1;
-
-    // The variable to store the server's address.
-    //struct sockaddr_in server;
+    int BUFFER_SIZE = 1024 * 1024 * 2;
 
     // Count the number of messeges.
     int counter_message = 0;
@@ -48,17 +43,12 @@ int main(int argc, char *argv[]) {
         struct _node* next;
     } DataPoint;
 
-
     typedef struct _StrList {
-        DataPoint* _head;
+        struct _node* _head;
     }StrList;
 
-    StrList* list = (StrList*)malloc(sizeof(StrList));
-    if(list == NULL){
-        return 1;
-    }
-    list->_head = NULL;
-    DataPoint* curr;
+    StrList* list = NULL;
+    DataPoint* current;
 
     // Save time.
     struct timeval start, end;
@@ -74,26 +64,11 @@ int main(int argc, char *argv[]) {
     int SERVER_PORT = atoi(argv[2]);
 
     // Create a buffer to store the received message.
-    char *buffer = (char*)malloc(BUFFER_SIZE);
-
-    if(buffer == NULL){
-        return 1;
-    }
+    char buffer[BUFFER_SIZE];
 
     // Try to create a TCP socket (IPv4, stream-based, default protocol).
     RUDP_Socket *Server = rudp_socket(true, SERVER_PORT);
     fprintf(stdout, "Listening for incoming connections on port %d...\n", SERVER_PORT);
-
-    //printf("Server is running...\n");
-
-    // Set the server's address to "0.0.0.0" (all IP addresses on the local machine).
-    //server.sin_addr.s_addr = INADDR_ANY;
-
-    // Set the server's address family to AF_INET (IPv4).
-    //server.sin_family = AF_INET;
-
-    // Set the server's port to the specified port. Note that the port must be in network byte order.
-    //server.sin_port = htons(SERVER_PORT);
 
     if(rudp_accept(Server) == 0){
         perror("rudp_accept()");
@@ -103,19 +78,25 @@ int main(int argc, char *argv[]) {
 
     printf("Server has a connection!\n");
 
-    // Print a message to the standard output to indicate that a new client has connected.
-    //fprintf(stdout, "Client %s:%d connected\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-
+    int flag_disconnect = 0;
     // The server's main loop.
-    while (1)
+    while (!flag_disconnect)
     {
+        printf("Waiting for a message...\n");
 
         // Record start time
         gettimeofday(&start, NULL);
-       
+
+        int bytes_total = 0;
+        do{
+            int bytes_received = 0;
+            //printf("1\t");
             // Receive a message from the client and store it in the buffer.
-            int bytes_received = rudp_recv(Server, buffer, BUFFER_SIZE);
-            printf("bytes received: %d\n", bytes_received);
+            if(bytes_total + WINDOW_SIZE > BUFFER_SIZE){
+                bytes_received = rudp_recv(Server, buffer + bytes_total, BUFFER_SIZE - bytes_total);
+            }else{
+                bytes_received = rudp_recv(Server, buffer + bytes_total, WINDOW_SIZE);
+            }
             // If the message receiving failed, print an error message and return 1.
             if (bytes_received < 0)
             {
@@ -123,25 +104,29 @@ int main(int argc, char *argv[]) {
                 rudp_close(Server);
                 return 1;
             }
-
-            // If the amount of received bytes is 0, the client has disconnected.
-            // Close the client's socket and continue to the next iteration.
+            
             else if (bytes_received == 0)
             {
                 fprintf(stdout, "Client %s:%d disconnected\n", inet_ntoa(Server->dest_addr.sin_addr), ntohs(Server->dest_addr.sin_port));
-                //rudp_disconnect(Server);
+                flag_disconnect = 1;
                 break;
             }
+
+            bytes_total += bytes_received;
+        }
+        while(bytes_total < BUFFER_SIZE);
+
+        printf("Received %d bytes\n", bytes_total);
+
+        if(flag_disconnect == 1){
+            break;
+        }
 
         //add the message to the counter
         counter_message++;
 
         // Record end time.
         gettimeofday(&end, NULL);
-
-        // Ensure that the buffer is null-terminated, no matter what message was received.
-        // This is important to avoid SEGFAULTs when printing the buffer.
-        buffer[BUFFER_SIZE- 1] = '\0';
 
         // Calculate the time until the messege arrived.
         elapsedTimeMs = (end.tv_sec - start.tv_sec) * 1000 + (double)(end.tv_usec - start.tv_usec) / 1000;
@@ -151,64 +136,68 @@ int main(int argc, char *argv[]) {
         band_width = calculateSpeed(BUFFER_SIZE,elapsedTimeMs);
         sum_of_bandwidth += band_width;
 
-        //printf("bandwidth: %f\n", band_width);
-        //printf("byte recived is %d counter: %d\n", bytes_received,counter_message);
-        
         // Store the data in the list.
         DataPoint* p = (DataPoint*)malloc(sizeof(DataPoint));
         if(p == NULL){
+            perror("malloc()");
             return 1;
         }
 
 	    p->speed_mb_per_sec = band_width;
 	    p->time_ms = elapsedTimeMs;
+        p->next = NULL;
 
+        if(list == NULL){
+            list = (StrList*)malloc(sizeof(StrList));
+            if(list == NULL){
+                perror("malloc()");
+                return 1;
+            }
+            list->_head = NULL;
+            current = list->_head;
+        }
         if(list->_head == NULL){
             list->_head = p;
-            curr = p;
+            current = p;
         }else{
-            curr->next = p;
-            curr = p;
+            current->next = p;
+            current = p;
         }
-        
     }
 
     fprintf(stdout, "\nServer finished!\n");
 
+    printf("\n********************************************\n");
+    DataPoint* tmp = list->_head;
+    int index = 1;
+    while(tmp){
+
+        printf("Run #%d: Time = %ldms; Speed = %.3fMB/s\n\n", index, tmp->time_ms, tmp->speed_mb_per_sec);
+        index++;                
+        tmp = tmp->next;
+    }
+    double avg_time = sum_of_time / counter_message;
+    double avg_bandwidth = sum_of_bandwidth / counter_message;
+
+    printf("\nAverage time: %.3fms\n", avg_time);
+    printf("Average bandwidth: %.3fMB/s\n", avg_bandwidth);
     printf("********************************************\n");
-                DataPoint* tmp = list->_head;
-                int index = 1;
-                while(tmp){
-                    //if(tmp->time_ms >= 50){
-                    printf("Run #%d: Time = %ldms; Speed = %.3fMB/s\n\n", index, tmp->time_ms, tmp->speed_mb_per_sec);
-                    index++;
-                    
-                    
-                    tmp = tmp->next;
-                }
-                double avg_time = sum_of_time / counter_message;
-                double avg_bandwidth = sum_of_bandwidth / counter_message;
 
-                printf("\n");
-                printf("Average time: %.3fms\n\n", avg_time);
-                printf("Average bandwidth: %.3fMB/s\n", avg_bandwidth);
-                printf("********************************************\n");
+    rudp_close(Server);
 
-            rudp_close(Server);
-
-            if(list == NULL){
-                return 0;
-            }
-            DataPoint* cur = list->_head;
-            while (cur != NULL)
-            {
-                DataPoint* next = cur->next;
-                free(cur);
-                cur = next;
-            }
-            free(list);
+    if(list == NULL){
+        return 0;
+    }
+    DataPoint* cur = list->_head;
+    while (cur != NULL)
+    {
+        DataPoint* next = cur->next;
+        free(cur);
+        cur = next;
+    }
+    free(list);
             
-            return 0;
+    return 0;
 
 }
 
