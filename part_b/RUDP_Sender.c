@@ -13,8 +13,8 @@
 
 char *util_generate_random_data(unsigned int);
 
-// Size of the message.
-unsigned int size_of_message = 2 * 1024 * 1024;
+// Size of the message 2MB.
+int size_of_message = 2 * 1024 * 1024;
 
 /*
  * @brief RUDP Client main function.
@@ -24,25 +24,8 @@ unsigned int size_of_message = 2 * 1024 * 1024;
 int main(int argc, char *argv[]) {
     RUDP_Socket* client;
 
-    // The variable to store the server's address.
-    struct sockaddr_in server;
-
-    //FILE *message1;
-
-    // Open a file for writing.
-    /*message1 = fopen("messageRUDP.txt", "w+");
-
-    if(message1 == NULL){
-        return 1;
-    }*/
-
     // Create a message of 2MB to send to the server.
     char *message = util_generate_random_data(size_of_message);
-
-    //fwrite(message, 1, size_of_message, message1);
-
-    // Reset the server structure to zeros.
-    memset(&server, 0, sizeof(server));
 
     // Check if the command is correct.
     if(argc != 5){
@@ -72,22 +55,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Convert the server's address from text to binary form and store it in the server structure.
-    // This should not fail if the address is valid (e.g. "127.0.0.1").
-    if (inet_pton(AF_INET, SERVER_IP, &server.sin_addr) <= 0)
-    {
-        perror("inet_pton(3)");
-        rudp_close(client);
-        return 1;
-    }
-
-    // Set the server's address family to AF_INET (IPv4).
-    server.sin_family = AF_INET;
-
-    // Set the server's port to the defined port. Note that the port must be in network byte order,
-    // so we first convert it to network byte order using the htons function.
-    server.sin_port = htons(SERVER_PORT);
-
     printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
 
     // Try to connect to the server using the socket and the server structure.
@@ -98,39 +65,45 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int sender_choise = 0;
-    printf("if you want to send the file again press '1'.\npress '0' if you dont want to send the file again\n");
-    scanf("%d", &sender_choise);
+    int bytes_total = 0;
+    int sender_choise = 1;
     while(sender_choise == 1){
-    
-        // Try to send the message to the server using the socket.
-        int bytes_sent = rudp_send(client, message, size_of_message);
+        
+        bytes_total = 0;
+        
+        do{
+            // Try to send the message to the server using the socket.
+            int bytes_sent = rudp_send(client, message + bytes_total, WINDOW_SIZE);
 
-        // If the message sending failed, print an error message and return 1.
-        // If no data was sent, print an error message and return 1. Only occurs if the connection was closed.
-        if (bytes_sent < 0)
-        {
-            perror("rudp_send()");
-            rudp_disconnect(client);
-            rudp_close(client);
-            return 1;
+            // If the message sending failed, print an error message and return 1.
+            // If no data was sent, print an error message and return 1. Only occurs if the connection was closed.
+            if (bytes_sent < 0)
+            {
+                perror("rudp_send()");
+                rudp_disconnect(client);
+                rudp_close(client);
+                return 1;
+            }
+            else if (bytes_sent == 0)
+            {
+                rudp_disconnect(client);
+                rudp_close(client);
+                return 1;
+            }
+
+            bytes_total += bytes_sent;
         }
+        while(bytes_total < size_of_message);
 
         printf("if you want to send the file again press '1'.\npress '0' if you dont want to send the file again\n");
         scanf("%d", &sender_choise);
     }
-
-    // fprintf(stdout, "Sent %d bytes to the server!\n"
-    //                 "Waiting for the server to respond...\n", bytes_sent);
 
     // Close the socket.
     rudp_disconnect(client);
 
     // release the memory.
     rudp_close(client);
-    
-    // Close the file.
-    //fclose(message1);
 
     fprintf(stdout, "Connection closed!\n");
 
